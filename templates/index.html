@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>かおスライム</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    h1 { font-size: 2rem; font-weight: 600; margin-bottom: 0.4rem; color: #222; }
+    .subtitle { font-size: 0.9rem; color: #888; margin-bottom: 1.5rem; }
+
+    #camera-section {
+      position: relative;
+      width: 320px;
+      height: 240px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #ddd;
+      background: #222;
+      margin-bottom: 1.5rem;
+    }
+    #video {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    #overlay {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      transform: scaleX(-1);
+    }
+    #start-btn {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 10px 24px;
+      border-radius: 10px;
+      border: none;
+      background: rgba(255,255,255,0.9);
+      color: #222;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    #start-btn:hover { background: #fff; }
+
+    #slime-canvas { display: block; margin-bottom: 1.5rem; }
+
+    #status-bar {
+      width: 320px;
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #eee;
+      padding: 14px 18px;
+      margin-bottom: 1rem;
+    }
+    .level-label { font-size: 12px; color: #aaa; margin-bottom: 4px; }
+    .level-display { font-size: 20px; font-weight: 600; color: #222; }
+    .level-dots { display: flex; gap: 8px; margin-top: 10px; }
+    .dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #e0e0e0;
+      transition: background 0.5s;
+    }
+    .dot.active { background: #5DCAA5; }
+    .dot.hard { background: #888780; }
+    .dot.soft { background: #F0997B; }
+
+    #message {
+      font-size: 14px; color: #666;
+      text-align: center;
+      min-height: 22px;
+      margin-bottom: 1rem;
+    }
+    #action-btn {
+      display: none;
+      padding: 12px 32px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      background: #fff;
+      color: #222;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #action-btn:hover { background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <h1>かおスライム</h1>
+  <p class="subtitle">カメラで顔の硬さを検出してスライムに反映します</p>
+
+  <div id="camera-section">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+    <button id="start-btn">カメラを起動する</button>
+  </div>
+
+  <canvas id="slime-canvas" width="200" height="160"></canvas>
+
+  <div id="status-bar">
+    <div class="level-label">顔の柔らかさ</div>
+    <div class="level-display" id="level-text">検出中...</div>
+    <div class="level-dots">
+      <div class="dot" id="d1"></div>
+      <div class="dot" id="d2"></div>
+      <div class="dot" id="d3"></div>
+    </div>
+  </div>
+
+  <div id="message"></div>
+  <button id="action-btn" onclick="handleAction()"></button>
+
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script>
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const slimeCanvas = document.getElementById('slime-canvas');
+    const ctx = slimeCanvas.getContext('2d');
+    const startBtn = document.getElementById('start-btn');
+    const levelText = document.getElementById('level-text');
+    const messageEl = document.getElementById('message');
+    const actionBtn = document.getElementById('action-btn');
+
+    let currentLevel = 2;
+    let slimePoints = [];
+    let slimePhase = 0;
+    let detecting = false;
+
+    const LEVELS = {
+      1: { label: 'カチカチ', color: '#888780', message: '少しリラックスしましょう😌', action: 'リラックスページへ', url: '/relax', dotClass: 'hard' },
+      2: { label: 'ちょうどいい', color: '#5DCAA5', message: 'いい感じです！✨', action: null, dotClass: 'active' },
+      3: { label: 'ダルダル', color: '#F0997B', message: 'しっかりしよう！💪', action: '喝ページへ', url: '/katsu', dotClass: 'soft' }
+    };
+
+    function initSlimePoints() {
+      slimePoints = [];
+      const n = 24;
+      for (let i = 0; i < n; i++) {
+        const angle = (i / n) * Math.PI * 2;
+        slimePoints.push({ angle, baseR: 55, r: 55, vr: 0 });
+      }
+    }
+
+    function updateSlime() {
+      const level = LEVELS[currentLevel];
+      const hardness = currentLevel === 1 ? 0.95 : currentLevel === 3 ? 0.3 : 0.65;
+      const wobble = currentLevel === 1 ? 0.3 : currentLevel === 3 ? 4.5 : 2.0;
+      const speed = currentLevel === 1 ? 0.04 : currentLevel === 3 ? 0.025 : 0.035;
+
+      slimePhase += speed;
+      slimePoints.forEach((p, i) => {
+        const wave = Math.sin(slimePhase * 2 + i * 0.5) * wobble
+                   + Math.sin(slimePhase * 3.1 + i * 0.9) * wobble * 0.5;
+        const target = p.baseR + wave;
+        p.vr = p.vr * hardness + (target - p.r) * (1 - hardness) * 8;
+        p.r += p.vr;
+      });
+
+      ctx.clearRect(0, 0, 200, 160);
+      const cx = 100, cy = 88;
+
+      ctx.beginPath();
+      for (let i = 0; i < slimePoints.length; i++) {
+        const p = slimePoints[i];
+        const x = cx + Math.cos(p.angle) * p.r;
+        const y = cy + Math.sin(p.angle) * p.r * 0.85;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = level.color;
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.arc(cx - 14, cy - 8, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 14, cy - 8, 7, 0, Math.PI * 2); ctx.fill();
+
+      ctx.fillStyle = '#333';
+      ctx.beginPath(); ctx.arc(cx - 14, cy - 7, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 14, cy - 7, 3, 0, Math.PI * 2); ctx.fill();
+
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 2;
+      if (currentLevel === 1) {
+        ctx.beginPath(); ctx.arc(cx, cy + 14, 10, 0, Math.PI, true); ctx.stroke();
+      } else if (currentLevel === 3) {
+        ctx.beginPath(); ctx.arc(cx, cy + 12, 10, 0, Math.PI); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.arc(cx, cy + 12, 10, 0, Math.PI); ctx.fill();
+      }
+
+      requestAnimationFrame(updateSlime);
+    }
+
+    function setLevel(level) {
+      if (level === currentLevel) return;
+      currentLevel = level;
+      const info = LEVELS[level];
+      levelText.textContent = info.label;
+      messageEl.textContent = info.message;
+
+      for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById('d' + i);
+        dot.className = 'dot';
+        if (i <= level) dot.classList.add(info.dotClass);
+      }
+
+      if (info.action) {
+        actionBtn.style.display = 'inline-block';
+        actionBtn.textContent = info.action;
+        actionBtn.dataset.url = info.url;
+      } else {
+        actionBtn.style.display = 'none';
+      }
+    }
+
+    function handleAction() {
+      window.location.href = actionBtn.dataset.url;
+    }
+
+    async function loadModels() {
+      const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+      ]);
+    }
+
+    async function startCamera() {
+      startBtn.style.display = 'none';
+      levelText.textContent = 'モデル読み込み中...';
+      try {
+        await loadModels();
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        detecting = true;
+        detectLoop();
+        levelText.textContent = '検出中...';
+      } catch (e) {
+        levelText.textContent = 'カメラエラー';
+        startBtn.style.display = 'block';
+        startBtn.textContent = '再試行';
+        console.error(e);
+      }
+    }
+
+    let smoothScore = 0.5;
+
+    async function detectLoop() {
+      if (!detecting) return;
+      try {
+        const result = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+          .withFaceExpressions();
+
+        if (result) {
+          const e = result.expressions;
+          const hardScore = (e.angry || 0) + (e.disgusted || 0) + (e.fearful || 0) * 0.5 + (e.neutral || 0) * 0.3;
+          const softScore = (e.happy || 0) + (e.surprised || 0) * 0.5 + (e.sad || 0) * 0.3;
+          const raw = softScore - hardScore + 0.5;
+          const clamped = Math.max(0, Math.min(1, raw));
+          smoothScore = smoothScore * 0.85 + clamped * 0.15;
+
+          let newLevel;
+          if (smoothScore < 0.35) newLevel = 1;
+          else if (smoothScore > 0.65) newLevel = 3;
+          else newLevel = 2;
+          setLevel(newLevel);
+        }
+      } catch (e) {}
+      setTimeout(detectLoop, 300);
+    }
+
+    startBtn.addEventListener('click', startCamera);
+    initSlimePoints();
+    setLevel(2);
+    updateSlime();
+  </script>
+</body>
+</html>

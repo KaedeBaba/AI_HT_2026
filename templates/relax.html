@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>リラックス</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #e8f5f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    h1 { font-size: 1.6rem; font-weight: 600; color: #2a7a60; margin-bottom: 0.5rem; }
+    .subtitle { font-size: 0.9rem; color: #5a9a80; margin-bottom: 2.5rem; }
+
+    #breath-container {
+      position: relative;
+      width: 220px; height: 220px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 2rem;
+    }
+    #breath-circle {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      background: #5DCAA5;
+      transition: transform 0.1s;
+      opacity: 0.85;
+    }
+    #breath-label {
+      position: absolute;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      text-align: center;
+      pointer-events: none;
+    }
+    #breath-phase {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #2a7a60;
+      margin-bottom: 0.5rem;
+      min-height: 32px;
+    }
+    #breath-count {
+      font-size: 0.85rem;
+      color: #5a9a80;
+      margin-bottom: 2rem;
+    }
+    #progress-bar {
+      width: 220px; height: 6px;
+      background: #c0e8d8;
+      border-radius: 3px;
+      margin-bottom: 2.5rem;
+      overflow: hidden;
+    }
+    #progress-fill {
+      height: 100%;
+      background: #5DCAA5;
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    #back-btn {
+      padding: 12px 32px;
+      border-radius: 10px;
+      border: 1px solid #5DCAA5;
+      background: #fff;
+      color: #2a7a60;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #back-btn:hover { background: #e8f5f0; }
+    #complete-msg {
+      display: none;
+      font-size: 1.1rem;
+      color: #2a7a60;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>😌 リラックスしましょう</h1>
+  <p class="subtitle">深呼吸して顔の力を抜いてみてください</p>
+
+  <div id="breath-container">
+    <div id="breath-circle"></div>
+    <div id="breath-label"></div>
+  </div>
+
+  <div id="breath-phase">準備してください...</div>
+  <div id="breath-count"></div>
+
+  <div id="progress-bar">
+    <div id="progress-fill"></div>
+  </div>
+
+  <div id="complete-msg">お疲れさまでした！気持ちが楽になりましたか？</div>
+  <button id="back-btn" onclick="window.location.href='/'">← メインに戻る</button>
+
+  <script>
+    const circle = document.getElementById('breath-circle');
+    const label = document.getElementById('breath-label');
+    const phaseEl = document.getElementById('breath-phase');
+    const countEl = document.getElementById('breath-count');
+    const fillEl = document.getElementById('progress-fill');
+    const completeMsg = document.getElementById('complete-msg');
+
+    const CYCLES = 3;
+    const PHASES = [
+      { name: '吸って', duration: 4000, scale: 1.6, color: '#5DCAA5' },
+      { name: '止めて', duration: 4000, scale: 1.6, color: '#1D9E75' },
+      { name: '吐いて', duration: 8000, scale: 1.0, color: '#9FE1CB' },
+    ];
+
+    let cycle = 0;
+    let phaseIndex = 0;
+    let startTime = null;
+    let running = true;
+
+    function startBreath() {
+      setTimeout(runPhase, 1000);
+    }
+
+    function runPhase() {
+      if (!running) return;
+      if (cycle >= CYCLES) {
+        phaseEl.textContent = '完了！';
+        countEl.textContent = '';
+        label.textContent = '';
+        circle.style.transform = 'scale(1)';
+        fillEl.style.width = '100%';
+        completeMsg.style.display = 'block';
+        return;
+      }
+
+      const phase = PHASES[phaseIndex];
+      phaseEl.textContent = phase.name;
+      countEl.textContent = `${cycle + 1} / ${CYCLES} セット`;
+      circle.style.background = phase.color;
+
+      const totalTime = phase.duration;
+      const startScale = phaseIndex === 0 ? 1.0 : phaseIndex === 1 ? 1.6 : 1.6;
+      const endScale = phase.scale;
+
+      let start = null;
+      function animate(ts) {
+        if (!start) start = ts;
+        const elapsed = ts - start;
+        const progress = Math.min(elapsed / totalTime, 1);
+        const scale = startScale + (endScale - startScale) * progress;
+        circle.style.transform = `scale(${scale})`;
+
+        const totalProgress = ((cycle * 3 + phaseIndex) / (CYCLES * 3)) + (progress / (CYCLES * 3));
+        fillEl.style.width = (totalProgress * 100) + '%';
+
+        const remaining = Math.ceil((totalTime - elapsed) / 1000);
+        label.textContent = remaining > 0 ? remaining : '';
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          phaseIndex++;
+          if (phaseIndex >= PHASES.length) {
+            phaseIndex = 0;
+            cycle++;
+          }
+          setTimeout(runPhase, 300);
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    startBreath();
+  </script>
+</body>
+</html>
