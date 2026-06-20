@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>喝！</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #fff0eb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      transition: background 0.1s;
+    }
+    h1 { font-size: 1.6rem; font-weight: 600; color: #993C1D; margin-bottom: 0.5rem; }
+    .subtitle { font-size: 0.9rem; color: #D85A30; margin-bottom: 2rem; }
+
+    #katsu-text {
+      font-size: 5rem;
+      font-weight: 900;
+      color: #D85A30;
+      margin-bottom: 1rem;
+      letter-spacing: 0.1em;
+      transition: transform 0.05s;
+    }
+    #message {
+      font-size: 1.1rem;
+      color: #993C1D;
+      font-weight: 600;
+      margin-bottom: 2rem;
+      text-align: center;
+      min-height: 28px;
+    }
+    #katsu-btn {
+      padding: 18px 48px;
+      border-radius: 12px;
+      border: none;
+      background: #D85A30;
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 2rem;
+      transition: transform 0.1s, background 0.1s;
+      letter-spacing: 0.05em;
+    }
+    #katsu-btn:hover { background: #993C1D; }
+    #katsu-btn:active { transform: scale(0.95); }
+
+    #waveform {
+      width: 280px; height: 60px;
+      margin-bottom: 2rem;
+    }
+    #back-btn {
+      padding: 12px 32px;
+      border-radius: 10px;
+      border: 1px solid #D85A30;
+      background: #fff;
+      color: #993C1D;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #back-btn:hover { background: #fff0eb; }
+  </style>
+</head>
+<body>
+  <h1>💪 気合いを入れよう！</h1>
+  <p class="subtitle">顔がダルダルです。しっかりしましょう！</p>
+
+  <div id="katsu-text">喝！</div>
+  <div id="message">ボタンを押して気合いを入れよう</div>
+
+  <button id="katsu-btn" onclick="playKatsu()">喝を入れる！</button>
+
+  <canvas id="waveform" width="280" height="60"></canvas>
+
+  <button id="back-btn" onclick="window.location.href='/'">← メインに戻る</button>
+
+  <script>
+    const messages = [
+      'しっかりしろ！！',
+      'もっと顔に力を入れて！',
+      '気合いだ！気合い！',
+      'ボーっとするな！',
+      'その顔じゃ勝てないぞ！',
+    ];
+
+    const katsuText = document.getElementById('katsu-text');
+    const messageEl = document.getElementById('message');
+    const canvas = document.getElementById('waveform');
+    const wctx = canvas.getContext('2d');
+
+    let audioCtx = null;
+    let waveData = new Float32Array(280).fill(0);
+    let animating = false;
+
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      return audioCtx;
+    }
+
+    function playKatsu() {
+      const ac = getAudioCtx();
+
+      const osc1 = ac.createOscillator();
+      const osc2 = ac.createOscillator();
+      const gainNode = ac.createGain();
+      const distortion = ac.createWaveShaper();
+
+      function makeDistortionCurve(amount) {
+        const samples = 256;
+        const curve = new Float32Array(samples);
+        for (let i = 0; i < samples; i++) {
+          const x = (i * 2) / samples - 1;
+          curve[i] = ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x));
+        }
+        return curve;
+      }
+      distortion.curve = makeDistortionCurve(400);
+
+      osc1.type = 'sawtooth';
+      osc2.type = 'square';
+      osc1.frequency.setValueAtTime(120, ac.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(60, ac.currentTime + 0.3);
+      osc2.frequency.setValueAtTime(180, ac.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(80, ac.currentTime + 0.3);
+
+      gainNode.gain.setValueAtTime(0.8, ac.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + 0.5);
+
+      osc1.connect(distortion);
+      osc2.connect(distortion);
+      distortion.connect(gainNode);
+      gainNode.connect(ac.destination);
+
+      osc1.start(ac.currentTime);
+      osc2.start(ac.currentTime);
+      osc1.stop(ac.currentTime + 0.5);
+      osc2.stop(ac.currentTime + 0.5);
+
+      katsuText.style.transform = 'scale(1.3)';
+      document.body.style.background = '#ffd0b8';
+      setTimeout(() => {
+        katsuText.style.transform = 'scale(1)';
+        document.body.style.background = '#fff0eb';
+      }, 200);
+
+      messageEl.textContent = messages[Math.floor(Math.random() * messages.length)];
+      startWave();
+    }
+
+    function startWave() {
+      if (animating) return;
+      animating = true;
+      let frame = 0;
+
+      function draw() {
+        frame++;
+        wctx.clearRect(0, 0, 280, 60);
+        wctx.strokeStyle = '#D85A30';
+        wctx.lineWidth = 2;
+        wctx.beginPath();
+
+        for (let x = 0; x < 280; x++) {
+          const decay = Math.max(0, 1 - frame / 40);
+          const y = 30 + Math.sin((x / 20) + frame * 0.5) * 20 * decay
+                      + Math.sin((x / 8) + frame * 0.9) * 8 * decay;
+          if (x === 0) wctx.moveTo(x, y);
+          else wctx.lineTo(x, y);
+        }
+        wctx.stroke();
+
+        if (frame < 60) requestAnimationFrame(draw);
+        else {
+          wctx.clearRect(0, 0, 280, 60);
+          animating = false;
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+  </script>
+</body>
+</html>
