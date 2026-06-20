@@ -71,11 +71,11 @@
   </style>
 </head>
 <body>
-  <h1>💪 気合いを入れよう！</h1>
-  <p class="subtitle">顔がダルダルです。しっかりしましょう！</p>
+  <h1>💪 気合いを入れましょう！</h1>
+  <p class="subtitle">緩んでいます。しっかりしましょう！</p>
 
   <div id="katsu-text">喝！</div>
-  <div id="message">ボタンを押して気合いを入れよう</div>
+  <div id="message">ボタンを押して気合いを入れましょう！</div>
 
   <button id="katsu-btn" onclick="playKatsu()">喝を入れる！</button>
 
@@ -100,6 +100,7 @@
     let audioCtx = null;
     let waveData = new Float32Array(280).fill(0);
     let animating = false;
+    let selectedMessage = '';
 
     function getAudioCtx() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -152,8 +153,24 @@
         document.body.style.background = '#fff0eb';
       }, 200);
 
-      messageEl.textContent = messages[Math.floor(Math.random() * messages.length)];
+      selectedMessage = messages[Math.floor(Math.random() * messages.length)];
+      messageEl.textContent = selectedMessage;
+      speakMessage(selectedMessage);
       startWave();
+    }
+
+    function speakMessage(text) {
+      if (!('speechSynthesis' in window)) return;
+
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      utterance.rate = 1.05;
+      utterance.pitch = 1.1;
+      utterance.volume = 1;
+
+      window.speechSynthesis.speak(utterance);
     }
 
     function startWave() {
