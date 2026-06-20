@@ -120,7 +120,7 @@
       display: none;
       font-size: 1rem;
       color: var(--ink);
-      font-weight: 700;
+      font-weight: 600;
       margin-bottom: 1.5rem;
       text-align: center;
       line-height: 1.5;
@@ -159,9 +159,7 @@
 
   <div id="breath-phase">準備してください...</div>
   <div id="breath-count"></div>
-
   <div id="progress-bar"><div id="progress-fill"></div></div>
-
   <div id="complete-msg">お疲れさまでした！<br>気持ちが楽になりましたか？</div>
   <button id="back-btn" onclick="window.location.href='/'">← メインに戻る</button>
 
@@ -246,7 +244,6 @@
         grad.addColorStop(0, `rgba(180, 230, 255, ${alphas[ri]})`);
         grad.addColorStop(0.5, `rgba(58, 172, 200, ${alphas[ri]})`);
         grad.addColorStop(1, `rgba(26, 90, 122, ${alphas[ri] * 0.6})`);
-
         ctx.fillStyle = grad;
         ctx.fill();
 
