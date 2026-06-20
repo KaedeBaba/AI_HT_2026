@@ -10,6 +10,14 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def index():
     return FileResponse("static/index.html")
 
+@app.get("/index.html")
+def index_html():
+    return FileResponse("static/index.html")
+
+@app.get("/app.js")
+def app_js():
+    return FileResponse("static/app.js")
+
 @app.get("/relax")
 def relax():
     return FileResponse("static/relax.html")
